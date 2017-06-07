@@ -1,7 +1,7 @@
 # Om Mani Padme Hum !
 # SO2 concentration plot along the driving route at Tianjing or Beijing in May or June, 2016. A subset data 
 # for SO2 plotting might be generated, depending on whether or not a subset within each measurement is required. 
-# 2016-12-13 1st built, 2017-02-02 2nd modified, 2017-05-03, 3rd visit, Weihua Wang. 
+# 2016-12-13 1st built, 2017-02-02 2nd modified, 2017-05-03, 3rd visit, 2017-06-07, 4th modified, Weihua Wang. 
 # filename like this format "085638".
 # k is the specific day.
 # segflag: If "ON", Seg is a selected time instant.
@@ -23,19 +23,19 @@ SO2concplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF",
   
   # filename = "085638"; zoom=11; k=8; mon=5; ch="T"  # for debugging purpose 
   
-  cooR <- acquireCoor(mon,k,ch)      # No outliers.
-  cooR$time[1]                       # first time element
-  cooR$time[dim(cooR)[1]]            # last time element  
+  cooR <- acquireCoor(mon,k,ch)          # No outliers.
+  cooR$time[1]                           # first time element
+  cooR$time[dim(cooR)[1]]                # last time element  
   # or length(cooR$time)
   
   # timeInfo = c("085638", "092813", "103526", "122014", "131424", "133927", "142100", "154013")
   dirpath <- dirpath(mon,k,"doas")
-  options(digits=9)                  # extend default digits in numeric value
+  options(digits=9)                      # extend default digits in numeric value
   
   filepath = paste(dirpath, filename, ".csv", sep = "")
   
   dat = read.csv(filepath)
-  # Name each variable               # modified on 2017-02-02
+  # Name each variable                   # modified on 2017-02-02
   names(dat) <- c("FileName","Daytime","TimeFromStart","DistFromStart","dx","Xpos","Ypos","Lat","Lon","Ftot","F3","SolarAzim",
                   "SolarZen","Windv","Windd","RMS","HCHOaconc","HCHOfconc","HCHObconc","NO2aconc","NO2fconc","NO2bconc","SO2conc",
                   "O3conc","HCHOeconc","NO2econc","Totalextconc","avgc/molec","Totalextflux","Light")
@@ -43,9 +43,19 @@ SO2concplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF",
   time_st = dat$Daytime[1]
   time_ed = dat$Daytime[length(dat$Daytime)]
   t_st <- which(dat$Daytime == time_st)  # find which row has daytime at start measurement
-  t_st
+  #t_st
   t_ed <- which(dat$Daytime == time_ed)  # find which row has daytime of end measurement
-  t_ed
+  #t_ed
+  
+  # The spikes should be detected and rectified here. Modified on 2017-06-07
+  source("./spikesfromRMS.R")
+  idxVec <- spikesfromRMS(filename,k=8,mon=5,ch="T")
+  #idxVec
+  
+  source("./spikesReplaced.R")
+  #plot(dat$TimeFromStart,dat$SO2conc,type='l',col='blue')
+  dat$SO2conc <- spikesReplaced(dat$SO2conc, idxVec)
+  #lines(dat$TimeFromStart,dat$SO2conc,type='l',col='red')
   
   # First subset SO2 concentration and daytime, then subset longitude and latitude  
   if(segflag=="OFF"){
@@ -60,9 +70,9 @@ SO2concplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF",
   #   concSO2 <- subset(dat, Daytime >= time_st & Daytime <= time_ed, select = c(SO2conc, Daytime) )
   # } else if(segflag=="ON"){
   #   concSO2 <- subset(dat, Daytime >= time_st & Daytime <= as.numeric(endSeg), select = c(SO2conc, Daytime) )
-  # }                                                  # modified on 2017-05-03
+  # }                                                # modified on 2017-05-03
   
-  df <- cooR[(cooR$time %in% dat[t_st:t_ed, 2]),]    # nrow(df)
+  df <- cooR[(cooR$time %in% dat[t_st:t_ed, 2]),]    
   
   #### Old version of code #### 
   # select SO2 which shares common time    
