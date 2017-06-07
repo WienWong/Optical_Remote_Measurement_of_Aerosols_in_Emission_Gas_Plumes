@@ -1,7 +1,7 @@
 # Om Mani Padme Hum !
 # NO2 concentration plot along the driving route at Tianjing or Beijing in May or June. A subset data 
-# for NO2 plotting might generated, depending on whether or not a subset within each measurement is required. 
-# 2017-02-02 1st built, 2017-02-02 2nd modified, 2017-05-03, 3rd visit, Weihua Wang. 
+# for NO2 plotting might be generated, depending on whether or not a subset within each measurement is required. 
+# 2017-02-02 1st built, 2017-02-02 2nd modified, 2017-05-03, 3rd visit, 2017-06-07, 4th modified,Weihua Wang. 
 # filename like the format of "085638".
 # k is the specific day.
 # segflag: If "ON", Seg is a selected time instant.
@@ -41,9 +41,19 @@ NO2concplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF",
   time_st = dat$Daytime[1]
   time_ed = dat$Daytime[length(dat$Daytime)]
   t_st <- which(dat$Daytime == time_st)  # find which row has daytime at start measurement
-  t_st
+  #t_st
   t_ed <- which(dat$Daytime == time_ed)  # find which row has daytime of end measurement
-  t_ed
+  #t_ed
+  
+  # The spikes should be detected and rectified here. Modified on 2017-06-07
+  source("./spikesfromRMS.R")
+  idxVec <- spikesfromRMS(filename,k=8,mon=5,ch="T")
+  #idxVec
+  
+  source("./spikesReplaced.R")
+  #plot(dat$TimeFromStart,dat$NO2aconc,type='l',col='blue')
+  dat$NO2aconc <- spikesReplaced(dat$NO2aconc, idxVec)
+  #lines(dat$TimeFromStart,dat$NO2aconc,type='l',col='red')
   
   # First subset NO2 concentration and daytime, then subset longitude and latitude  
   if(segflag=="OFF"){
