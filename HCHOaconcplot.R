@@ -1,7 +1,7 @@
 # Om Mani Padme Hum !
-# HCHOa concentration plot along the driving route at Tianjing or Beijing in May or June, 2016. A subset data 
+# HCHOa concentration plot along the driving route at Tianjing or Beijing in May or June. A subset data 
 # for HCHO plotting might be generated, depending on whether or not a subset within each measurement is required. 
-# 2016-12-13 1st built, 2017-02-02 2nd modified, 2017-05-03, 3rd visit, Weihua Wang. 
+# 2016-12-13 1st built, 2017-02-02 2nd modified, 2017-05-03, 3rd modified, 2017-06-07, 4th modified, Weihua Wang. 
 # filename like this format "085638".
 # k is the specific day.
 # segflag: If "ON", Seg is a selected time instant.
@@ -12,6 +12,7 @@
 # size="ON" will turn on the sizer
 # Default setting, e.g: filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF",endSeg="141618", mon=5, ch="T"
 
+
 HCHOaconcplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF",Seg="141618",mon=5,ch="T") {
   
   library(ggplot2)
@@ -21,11 +22,11 @@ HCHOaconcplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF
   source("./centercal.R")
   source("./dirpath.R")
   
-  # filename = "085638"; zoom=11; k=8; mon=5; ch="T"; sizer="ON"  # for debugging purpose 
+  #filename = "154013"; zoom=11; k=8; mon=5; ch="T"; sizer="ON"; segflag="OFF"  # for debugging purpose 
   
-  cooR <- acquireCoor(mon,k,ch)          # No outliers.
-  cooR$time[1]                           # first time element
-  cooR$time[dim(cooR)[1]]                # last time element  
+  cooR <- acquireCoor(mon,k,ch)      # No outliers.
+  cooR$time[1]                       # first time element
+  cooR$time[dim(cooR)[1]]            # last time element  
   # or length(cooR$time)
   
   # timeInfo = c("085638", "092813", "103526", "122014", "131424", "133927", "142100", "154013")
@@ -43,9 +44,19 @@ HCHOaconcplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF
   time_st = dat$Daytime[1]
   time_ed = dat$Daytime[length(dat$Daytime)]
   t_st <- which(dat$Daytime == time_st)  # find which row has daytime at start measurement
-  t_st
+  #t_st
   t_ed <- which(dat$Daytime == time_ed)  # find which row has daytime of end measurement
-  t_ed
+  #t_ed
+  
+  # The spikes should be detected and rectified here. Modified on 2017-06-07
+  source("./spikesfromRMS.R")
+  idxVec <- spikesfromRMS(filename,k=8,mon=5,ch="T")
+  #idxVec
+  
+  source("./spikesReplaced.R")
+  #plot(dat$TimeFromStart,dat$HCHOaconc,type='l',col='blue')
+  dat$HCHOaconc <- spikesReplaced(dat$HCHOaconc, idxVec)
+  #lines(dat$TimeFromStart,dat$HCHOaconc,type='l',col='red')
   
   # First subset HCHOa conc and daytime, then subset longitude and latitude 
   if(segflag=="OFF"){
@@ -61,30 +72,36 @@ HCHOaconcplot <- function(filename="131424",zoom=13,sizer="OFF",k=8,segflag="OFF
   #   concHCHOa <- subset(dat, Daytime >= time_st & Daytime <= as.numeric(endSeg), select = c(HCHOaconc, Daytime) )
   # }                                                # modified on 2017-05-03
   
-  df <- cooR[(cooR$time %in% dat[t_st:t_ed, 2]),]    # nrow(df)
+  df <- cooR[(cooR$time %in% dat[t_st:t_ed, 2]),]   
   
   datmrg <- merge.data.frame(df, concHCHOa, by.x = "time", by.y = "Daytime")  # datmrg means merged data based on common time instant, modified on 2017-02-02
-  
-  # datmrg$size <- datmrg$HCHOaconc  # for sizer 
   
   maxv = round(max(datmrg$HCHOaconc))  
   print( paste("Max conc. is ", as.character(maxv), sep="") )
   minv = round(min(datmrg$HCHOaconc)) 
   print( paste("Min conc. is ", as.character(minv), sep="") )
   
-  # set concentration that less or equal to 0 to 0.01, for logarithmic calculation purpose.
-  #datmrg$NO2aconc[datmrg$NO2aconc <= 0] <- 0.001         # modified on 2017-02-02
+  # set concentration that less or equal to 0 to 0.001, for logarithmic calculation purpose.
+  #datmrg$NO2aconc[datmrg$NO2aconc <= 0] <- 0.001                             # modified on 2017-02-02
   
-  datmrg$HCHOaconc[datmrg$HCHOaconc < 0.01 | datmrg$HCHOaconc > 38] <- 0.01     # modified on 2017-03-02/2017-04-12
+  datmrg$HCHOaconc[datmrg$HCHOaconc < 0.01 | datmrg$HCHOaconc > 38] <- 0.01   # modified on 2017-03-02/2017-04-12
+  
+  # source("./spikesfromRMS.R")
+  # idxVec <- spikesfromRMS(filename,k=8,mon=5,ch="T")
+  # idxVec
+  # source("./spikesReplaced.R")
+  # plot(datmrg$time,datmrg$HCHOaconc,type='l')
+  # datmrg$HCHOaconc <- spikesReplaced(datmrg$HCHOaconc, idxVec)
+
   datmrg$size <- datmrg$HCHOaconc
   
   saveRDS(datmrg, "datmrgHCHOa.rds")
   
-  center <- centercal(datmrg$latitude, datmrg$longitude)  # modified on 2017-02-02
+  center <- centercal(datmrg$latitude, datmrg$longitude)         # modified on 2017-02-02
   
   mp <- ggmap( get_map(location = center, zoom=zoom, maptype="satellite") )  
   
-  title <- maptitle("HCHO", datmrg$time, k, ch, mon)      # modified on 2017-02-02
+  title <- maptitle("HCHO", datmrg$time, k, ch, mon)             # modified on 2017-02-02
   
   if (sizer=="ON") {
     mp + 
