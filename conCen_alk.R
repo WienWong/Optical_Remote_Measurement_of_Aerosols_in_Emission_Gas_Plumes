@@ -1,20 +1,33 @@
-conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg="141618"){
 
+conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg="141618"){
   # NH3 or Alkene (includes C2H4-Ethylene, C3H6-Propene, C4H6-Butadiene) or Alkane (C3H8-Propane,
   # C4H10-Butane, C8H18-Octane) concentration measurements on May kth 2016
-  # 2016-05-12, 1st built, Weihua Wang. 
+  # 2016-05-12, 1st built, , Weihua Wang. 
   # k is a number specifing the day from 1 to 31.
   # filename should be a string like 'butadiene_d05_1605081338_0' or "Butane05_d05_1605081420_0"
   # or 'C3H6_d05_1605151309_0'
   # The limit of zoomfactor is 1 to 21, default value is 14.
   # segflag: If "ON", endSeg is the last time instant. 
   # endSeg: the ending time instant, e.g."141618". It is used to subset the data
-  
   library(ggplot2)
   library(ggmap) 
+  source("./dirpath.R")
+  source("./spikesfromRMS2.R")
+  source("./spikesReplaced.R")
   
-  # Debug arguments
-  # filename='Butane_insb8_1605151351_0'; k=15; endSeg="135443"; zoomfactor=14;
+  # Debug settings
+  ###filename='Butane_insb8_1605151351_0'; k=15; endSeg="135443"; zoomfactor=14
+  # filename='Butane05_d05_1605081338_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  # filename='Butane05_d05_1605081420_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  # filename='Butane05_d05_1605081518_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  
+  # filename='C3H6_d05_1605081338_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  # filename='C3H6_d05_1605081420_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  # filename='C3H6_d05_1605081518_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  
+  # filename='butadiene_d05_1605081338_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  # filename='butadiene_d05_1605081420_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
+  # filename='butadiene_d05_1605081518_0'; k=8; zoomfactor=14; segflag="OFF"; sizer='ON'
   
   if (0<k & k<10){
     dirpath = "/home/wien/Octave/flameDOAS/GPS_SOF/16050"
@@ -30,75 +43,39 @@ conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg=
   
   options(digits=9)        # extend default digits in numeric value
   
+  # The spikes should be detected and rectified here. Modified on 2017-06-08
+  
+  idxVec <- spikesfromRMS2(filename,k=8,mon=5)
+  # idxVec
+  
   gas = "";
   if(substr(filename, 1, 3) == "But"){
     gas = "Alkane"
     colnames(datNArm)[2] <- "Daytime"    # Rename the second column variable. Not names(datNArm[,2]) <- "Daytime" because class(datNArm$Daytime) is a factor
+    colnames(datNArm)[3] <- "TimeFromStart" 
     colnames(datNArm)[8] <- "Lat"
     colnames(datNArm)[9] <- "Lon"
+    colnames(datNArm)[16] <- "RMS"
     colnames(datNArm)[21] <- "TotalConc" # Total Concentration
     Daytime <- datNArm[,2]
+    Time <- datNArm[,3]
     posLat <- datNArm[,8]                # extract latitude, posLat means position of latitude 
     posLon <- datNArm[,9]                # extract longitude 
+    RMS <- datNArm[,16]
     conCen <- datNArm[,21]               # extract Total Alkane concentration
+    #class(Time)                         # "integer"
+    #class(Daytime)                      # "factor"
+    #class(conCen)                       # "numeric"
     daytime <- as.vector.factor(Daytime) # convert a factor to a character vector
     dd<-as.numeric(daytime)
     time_st = dd[1]
     time_ed = dd[length(daytime)]
+  
     
-    coordinate <- matrix(data=NA, nrow=length(posLon), ncol=3)
+    plot(Time,conCen,type='l',col='blue')
+    conCen <- spikesReplaced(conCen, idxVec)
+    lines(Time,conCen,type='l',col='red')
     
-    if(segflag=="OFF"){
-      coordinate[, 1] <- posLon          # longitude
-      coordinate[, 2] <- posLat          # latitude
-      coordinate[, 3] <- conCen          # concentration  
-      coor <- data.frame(coordinate)     # need data frame not matrix format
-      names(coor) <- c('longitude','latitude','concentration') # add names 
-    } else if(segflag=="ON"){
-      coor1 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(Lon, Daytime) ) # longitude
-      coor2 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(Lat, Daytime) ) # latitude
-      coor3 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(TotalConc, Daytime) )
-      datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
-      coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
-      coor <- coor[,c(2,3,4)]            # Remove 'Daytime' column of factor class.
-      names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-03 
-    } else if(segflag=="22"){
-      coor1 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(Lon, Daytime) ) # longitude
-      coor2 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(Lat, Daytime) ) # latitude
-      coor3 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(TotalConc, Daytime) )
-      datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
-      coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
-      coor <- coor[,c(2,3,4)]            # Remove 'Daytime' column of factor class.
-      names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-04
-    } 
-    
-    coor[coor < 0.01 | coor > 1e4] <- 0.01  # remove outliers modified on 2017-03-02
-    
-    coor$size <- coor$concentration         # sizer for emphasis plotting
-    
-    saveRDS(coor, "datmrgAlkane.rds")
-    
-  } else if(substr(filename, 1, 3) == "but"){
-    gas = "Alkene"
-    colnames(datNArm)[2] <- "Daytime"  
-    colnames(datNArm)[8] <- "Lat"
-    colnames(datNArm)[9] <- "Lon"
-    colnames(datNArm)[18] <- "C2H4conc"
-    colnames(datNArm)[20] <- "C3H6conc"
-    colnames(datNArm)[21] <- "C4H6conc"     # Butadiene Concentration
-    
-    posLat <- datNArm[,8]                   # extract latitude, posLat means position of latitude 
-    posLon <- datNArm[,9]                   # extract longitude 
-    conCen <- datNArm[,18]+datNArm[,20]+datNArm[,21] # extract sum concentration of C2H4,C3H6,C4H6 
-    #class(conCen)  # "numeric"
-    datNArm$conCen <- conCen # add one column variable for subset 
-    #class(datNArm$conCen)
-    Daytime <- datNArm[,2]
-    #class(Daytime) # "factor"
-    daytime <- as.vector.factor(Daytime)    # convert a factor to a character vector
-    dd<-as.numeric(daytime)
-    time_st = dd[1]
-    time_ed = dd[length(daytime)]
     
     coordinate <- matrix(data=NA, nrow=length(posLon), ncol=3)
     
@@ -111,10 +88,69 @@ conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg=
     } else if(segflag=="ON"){
       coor1 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(Lon, Daytime) ) # longitude
       coor2 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(Lat, Daytime) ) # latitude
+      coor3 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(TotalConc, Daytime) )
+      datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
+      coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
+      coor <- coor[,c(2,3,4)] # Remove 'Daytime' column of factor class.
+      names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-03 
+    } else if(segflag=="22"){
+      coor1 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(Lon, Daytime) ) # longitude
+      coor2 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(Lat, Daytime) ) # latitude
+      coor3 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(TotalConc, Daytime) )
+      datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
+      coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
+      coor <- coor[,c(2,3,4)] # Remove 'Daytime' column of factor class.
+      names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-04
+    } 
+    
+    coor[coor < 0.01 | coor > 1e4] <- 0.01  # modified on 2017-03-02
+    
+    coor$size <- coor$concentration
+    
+    saveRDS(coor, "datmrgAlkane.rds")
+    
+  } else if(substr(filename, 1, 3) == "but"){
+    gas = "Alkene"
+    colnames(datNArm)[2] <- "Daytime"  
+    colnames(datNArm)[3] <- "TimeFromStart" 
+    colnames(datNArm)[8] <- "Lat"
+    colnames(datNArm)[9] <- "Lon"
+    colnames(datNArm)[18] <- "C2H4conc"
+    colnames(datNArm)[20] <- "C3H6conc"
+    colnames(datNArm)[21] <- "C4H6conc"  # Butadiene Concentration
+    Time <- datNArm[,3]
+    posLat <- datNArm[,8]   # extract latitude, posLat means position of latitude 
+    posLon <- datNArm[,9]   # extract longitude 
+    conCen <- datNArm[,18]+datNArm[,20]+datNArm[,21] # extract sum concentration of C2H4,C3H6,C4H6 
+    #class(conCen)  # "numeric"
+    datNArm$conCen <- conCen # add one column variable for subset 
+    #class(datNArm$conCen)
+    Daytime <- datNArm[,2]
+    #class(Daytime) # "factor"
+    daytime <- as.vector.factor(Daytime)  # convert a factor to a character vector
+    dd<-as.numeric(daytime)
+    time_st = dd[1]
+    time_ed = dd[length(daytime)]
+    
+    plot(Time,conCen,type='l',col='blue')
+    conCen <- spikesReplaced(conCen, idxVec)
+    lines(Time,conCen,type='l',col='red')
+    
+    coordinate <- matrix(data=NA, nrow=length(posLon), ncol=3)
+    
+    if(segflag=="OFF"){
+      coordinate[, 1] <- posLon     # longitude
+      coordinate[, 2] <- posLat     # latitude
+      coordinate[, 3] <- conCen     # concentration  
+      coor <- data.frame(coordinate)   # need data frame not matrix format
+      names(coor) <- c('longitude','latitude','concentration') # add names 
+    } else if(segflag=="ON"){
+      coor1 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(Lon, Daytime) ) # longitude
+      coor2 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(Lat, Daytime) ) # latitude
       coor3 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(conCen, Daytime) )
       datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
       coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
-      coor <- coor[,c(2,3,4)]          # Remove 'Daytime' column of factor class.
+      coor <- coor[,c(2,3,4)] # Remove 'Daytime' column of factor class.
       names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-03 
     } else if(segflag=="22"){
       coor1 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(Lon, Daytime) ) # longitude
@@ -122,7 +158,7 @@ conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg=
       coor3 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(conCen, Daytime) )
       datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
       coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
-      coor <- coor[,c(2,3,4)]          # Remove 'Daytime' column of factor class.
+      coor <- coor[,c(2,3,4)] # Remove 'Daytime' column of factor class.
       names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-04
     }                                       
     
@@ -135,25 +171,31 @@ conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg=
   } else if(substr(filename, 1, 3) == "C3H"){
     gas = "NH3"
     colnames(datNArm)[2] <- "Daytime"  
+    colnames(datNArm)[3] <- "TimeFromStart" 
     colnames(datNArm)[8] <- "Lat"
     colnames(datNArm)[9] <- "Lon"
     colnames(datNArm)[19] <- "conCen" # NH3
     Daytime <- datNArm[,2]
-    posLat <- datNArm[,8]             # extract latitude, posLat means position of latitude 
-    posLon <- datNArm[,9]             # extract longitude 
-    conCen <- datNArm[,19]            # extract concentration of NH3 or Butane
+    Time <- datNArm[,3]
+    posLat <- datNArm[,8]   # extract latitude, posLat means position of latitude 
+    posLon <- datNArm[,9]   # extract longitude 
+    conCen <- datNArm[,19]  # extract concentration of NH3 or Butane
     daytime <- as.vector.factor(Daytime)  # convert a factor to a character vector
     dd<-as.numeric(daytime)
     time_st = dd[1]
     time_ed = dd[length(daytime)]
     
+    plot(Time,conCen,type='l',col='blue')
+    conCen <- spikesReplaced(conCen, idxVec)
+    lines(Time,conCen,type='l',col='red')
+    
     coordinate <- matrix(data=NA, nrow=length(posLon), ncol=3)
     
     if(segflag=="OFF"){
-      coordinate[, 1] <- posLon       # longitude
-      coordinate[, 2] <- posLat       # latitude
-      coordinate[, 3] <- conCen       # concentration  
-      coor <- data.frame(coordinate)  # need data frame not matrix format
+      coordinate[, 1] <- posLon     # longitude
+      coordinate[, 2] <- posLat     # latitude
+      coordinate[, 3] <- conCen     # concentration  
+      coor <- data.frame(coordinate)   # need data frame not matrix format
       names(coor) <- c('longitude','latitude','concentration') # add names 
     } else if(segflag=="ON"){
       coor1 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(Lon, Daytime) ) # longitude
@@ -161,7 +203,7 @@ conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg=
       coor3 <- subset(datNArm, dd >= time_st & dd <= as.numeric(endSeg), select = c(conCen, Daytime) )
       datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
       coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
-      coor <- coor[,c(2,3,4)]         # Remove 'Daytime' column of factor class.
+      coor <- coor[,c(2,3,4)] # Remove 'Daytime' column of factor class.
       names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-03 
     } else if(segflag=="22"){
       coor1 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(Lon, Daytime) ) # longitude
@@ -169,7 +211,7 @@ conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg=
       coor3 <- subset(datNArm, dd >= as.numeric(endSeg) & dd <= time_ed, select = c(conCen, Daytime) )
       datmrg <- merge.data.frame(coor1, coor2, by.x = "Daytime", by.y = "Daytime")
       coor <- merge.data.frame(datmrg, coor3, by.x = "Daytime", by.y = "Daytime")
-      coor <- coor[,c(2,3,4)]         # Remove 'Daytime' column of factor class.
+      coor <- coor[,c(2,3,4)] # Remove 'Daytime' column of factor class.
       names(coor) <- c('longitude','latitude','concentration') # add names # modified on 2017-05-04
     } 
     
@@ -184,12 +226,13 @@ conCen_alk<- function(k,filename,sizer="OFF",zoomfactor=14,segflag="OFF",endSeg=
   minv = round(min(coor$concentration)) 
   print(c(maxv, minv))
   
-  # ggmap uses lon/lat, not lat/lon. e.g. c(117.73, 38.94)    
+  # ggmap uses lon/lat, not lat/lon.
+  # center <- c(117.73, 38.94)   # old center pair used for '160508/butadiene_d05_1605081338_0.csv'
   # center <- c( ( max(posLon) + min(posLon) )/2, ( max(posLat) + min(posLat) )/2 ) # center estimation 
   source("./centercal.R")
   center <- centercal(posLat,posLon)
   
-  mp <- ggmap(get_map(location = center, zoom=zoomfactor, maptype="satellite"))     # "terrain"  "hybrid"  "satellite"
+  mp <- ggmap(get_map(location = center, zoom=zoomfactor, maptype="satellite")) # "terrain"  "hybrid"  "satellite"
   
   # Color index plot to indicated the concentration along the driving route.    
   title <- if(segflag=="OFF"){
